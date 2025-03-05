@@ -27,77 +27,38 @@ class _FoldersScreenState extends State<FoldersScreen> {
   @override
   void initState() {
     super.initState();
-    _addTestFolder(); // Add test folder to ensure there is data
     _loadFolders();
   }
 
-  // Load folders from the database
   void _loadFolders() async {
-    final folders =
-        await DatabaseHelper.instance.getFolders(); // Use instance here
-    print('Loaded folders: $folders'); // Debugging print statement
-    setState(() {
-      _folders = folders;
-    });
+    final folders = await DatabaseHelper.instance.getFolders();
+    setState(() => _folders = folders);
   }
 
-  // Insert a test folder
-  void _addTestFolder() async {
-    final newFolder = {
-      'name': 'Test Folder',
-      'timestamp': DateTime.now().toString(),
-    };
-    await DatabaseHelper.instance.insertFolder(newFolder); // Use instance here
-
-    // Now, add some test cards for that folder
-    final folderId = 1; // Assuming the first folder is our "Test Folder"
-    await DatabaseHelper.instance.insertCard({
-      'name': 'Ace of Spades',
-      'suit': 'Spades',
-      'image_url':
-          'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/01_of_spades_A.svg/1024px-01_of_spades_A.svg.png',
-      'folder_id': folderId,
-    });
-    await DatabaseHelper.instance.insertCard({
-      'name': 'King of Hearts',
-      'suit': 'Hearts',
-      'image_url':
-          'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/King_of_hearts_fr.svg/1024px-King_of_hearts_fr.svg.png',
-      'folder_id': folderId,
-    });
-
-    _loadFolders(); // Reload folders after insertion
-  }
-
-  // Delete a folder
   void _deleteFolder(int folderId) async {
-    // Confirm the folder deletion
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Delete Folder'),
-          content: Text(
-            'Are you sure you want to delete this folder and all its cards?',
+      builder:
+          (context) => AlertDialog(
+            title: Text('Delete Folder'),
+            content: Text(
+              'Are you sure you want to delete this folder? it will delete all the card inside!',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  await DatabaseHelper.instance.deleteFolder(folderId);
+                  _loadFolders();
+                  Navigator.of(context).pop();
+                },
+                child: Text('Yes'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('No'),
+              ),
+            ],
           ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () async {
-                await DatabaseHelper.instance.deleteFolder(
-                  folderId,
-                ); // Delete folder and associated cards
-                _loadFolders(); // Reload folders after deletion
-                Navigator.of(context).pop(); // Close the dialog
-              },
-              child: Text('Yes'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(), // Cancel
-              child: Text('No'),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -113,20 +74,17 @@ class _FoldersScreenState extends State<FoldersScreen> {
             subtitle: Text('Tap to view cards'),
             trailing: IconButton(
               icon: Icon(Icons.delete),
-              onPressed: () {
-                _deleteFolder(_folders[index]['id']); // Delete the folder
-              },
+              onPressed: () => _deleteFolder(_folders[index]['id']),
             ),
-            onTap: () {
-              // Navigate to the Cards screen for that folder
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (context) => CardsScreen(folderId: _folders[index]['id']),
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) =>
+                            CardsScreen(folderId: _folders[index]['id']),
+                  ),
                 ),
-              );
-            },
           );
         },
       ),
@@ -145,8 +103,32 @@ class CardsScreen extends StatefulWidget {
 
 class _CardsScreenState extends State<CardsScreen> {
   List<Map<String, dynamic>> _cards = [];
-  bool _isFolderFull = false;
-  bool _isFolderTooEmpty = false;
+  bool get _isFolderFull => _cards.length >= 6;
+  bool get _isFolderTooEmpty => _cards.length < 3;
+
+  // Predefined card options
+  final List<Map<String, String>> _cardOptions = [
+    {
+      'name': 'Ace of Spades',
+      'image_url':
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/01_of_spades_A.svg/1024px-01_of_spades_A.svg.png',
+    },
+    {
+      'name': 'King of Hearts',
+      'image_url':
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/King_of_hearts_fr.svg/1024px-King_of_hearts_fr.svg.png',
+    },
+    {
+      'name': 'Queen of Diamonds',
+      'image_url':
+          'https://media.istockphoto.com/id/480325875/photo/playing-cards-queen-of-diamonds.jpg?s=612x612&w=0&k=20&c=zJmT27SyjpI6elVcD2yh4ewcF7QcSs6HiAYMpMiQAHE=',
+    },
+    {
+      'name': 'Jack of Clubs',
+      'image_url':
+          'https://upload.wikimedia.org/wikipedia/commons/2/2f/Poker-sm-244-Jc.png',
+    },
+  ];
 
   @override
   void initState() {
@@ -154,78 +136,55 @@ class _CardsScreenState extends State<CardsScreen> {
     _loadCards();
   }
 
-  // Load cards for the selected folder
   void _loadCards() async {
     final cards = await DatabaseHelper.instance.getCardsByFolderId(
       widget.folderId,
-    ); // Use instance here
-    print(
-      'Loaded cards for folder ${widget.folderId}: $cards',
-    ); // Debugging print statement
+    );
     setState(() {
       _cards = cards;
-      _isFolderFull = _cards.length >= 6;
-      _isFolderTooEmpty = _cards.length < 3;
     });
   }
 
-  // Add card to folder
-  void _addCard() async {
-    final cardCount = _cards.length;
-    if (cardCount >= 6) {
-      // Folder is full, show an error dialog
-      showDialog(
-        context: context,
-        builder:
-            (BuildContext context) => AlertDialog(
-              title: Text('Error'),
-              content: Text('This folder can only hold 6 cards.'),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('OK'),
-                ),
-              ],
-            ),
-      );
+  void _addCard(Map<String, String> selectedCard) async {
+    if (_isFolderFull) {
+      _showErrorDialog('Maximum 6 cards allowed.');
       return;
     }
 
-    // Add card logic here (e.g., show dialog to enter card name)
     final newCard = {
-      'name': 'New Card', // Example card details
-      'suit': 'Hearts',
-      'image_url':
-          'https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Jack_of_diamonds_fr.svg/1024px-Jack_of_diamonds_fr.svg.png', // Add a sample URL or use a placeholder image
+      'name': selectedCard['name'],
+      'suit': 'Unknown', // You can modify this if you want to store the suit
+      'image_url': selectedCard['image_url'],
       'folder_id': widget.folderId,
     };
-    await DatabaseHelper.instance.insertCard(newCard); // Use instance here
-    _loadCards(); // Reload the cards
+    await DatabaseHelper.instance.insertCard(newCard);
+    _loadCards();
   }
 
-  // Delete card from folder
   void _deleteCard(int cardId) async {
-    final cardCount = _cards.length;
-    await DatabaseHelper.instance.deleteCard(cardId); // Use instance here
-    _loadCards(); // Reload the cards
+    await DatabaseHelper.instance.deleteCard(cardId);
+    _loadCards();
 
-    // Ensure folder has at least 3 cards
-    if (cardCount - 1 < 3) {
-      showDialog(
-        context: context,
-        builder:
-            (BuildContext context) => AlertDialog(
-              title: Text('Warning'),
-              content: Text('You need at least 3 cards in this folder.'),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('OK'),
-                ),
-              ],
-            ),
-      );
+    if (_cards.length - 1 < 3) {
+      _showErrorDialog('Minimum 6 cards required.');
     }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('Error'),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('OK'),
+              ),
+            ],
+          ),
+    );
   }
 
   @override
@@ -252,23 +211,15 @@ class _CardsScreenState extends State<CardsScreen> {
                 return Card(
                   child: Column(
                     children: [
-                      _cards[index]['image_url'].isNotEmpty
-                          ? Image.network(
-                            _cards[index]['image_url'],
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.image_not_supported,
-                                size: 50,
-                              ); // Fallback if image is not loaded
-                            },
-                          )
-                          : Icon(
-                            Icons.image_not_supported,
-                            size: 50,
-                          ), // Fallback for missing images
+                      Image.network(
+                        _cards[index]['image_url'],
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(Icons.image_not_supported, size: 50);
+                        },
+                      ),
                       Text(_cards[index]['name']),
                       IconButton(
                         icon: Icon(Icons.delete),
@@ -281,7 +232,38 @@ class _CardsScreenState extends State<CardsScreen> {
             ),
           ),
           if (!_isFolderFull)
-            ElevatedButton(onPressed: _addCard, child: Text('Add Card')),
+            ElevatedButton(
+              onPressed: () {
+                // Show card selection dialog
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: Text('Select a Card'),
+                        content: SingleChildScrollView(
+                          child: Column(
+                            children:
+                                _cardOptions.map((card) {
+                                  return ListTile(
+                                    title: Text(card['name']!),
+                                    leading: Image.network(
+                                      card['image_url']!,
+                                      width: 30,
+                                      height: 30,
+                                    ),
+                                    onTap: () {
+                                      _addCard(card);
+                                      Navigator.of(context).pop();
+                                    },
+                                  );
+                                }).toList(),
+                          ),
+                        ),
+                      ),
+                );
+              },
+              child: Text('Add Card'),
+            ),
         ],
       ),
     );
